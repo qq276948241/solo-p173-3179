@@ -15,7 +15,7 @@ func Init(dbPath string) error {
 		return err
 	}
 	DB = db
-	return DB.AutoMigrate(&models.User{}, &models.Property{}, &models.Order{})
+	return DB.AutoMigrate(&models.User{}, &models.Property{}, &models.Order{}, &models.Review{})
 }
 
 func InitTest() (*gorm.DB, error) {
@@ -23,7 +23,7 @@ func InitTest() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.AutoMigrate(&models.User{}, &models.Property{}, &models.Order{})
+	err = db.AutoMigrate(&models.User{}, &models.Property{}, &models.Order{}, &models.Review{})
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(jwtService)
 	propertyHandler := handlers.NewPropertyHandler()
 	orderHandler := handlers.NewOrderHandler()
+	reviewHandler := handlers.NewReviewHandler()
 
 	r := gin.Default()
 
@@ -42,6 +43,7 @@ func main() {
 
 		api.GET("/properties", propertyHandler.List)
 		api.GET("/properties/:id", propertyHandler.Get)
+		api.GET("/properties/:id/reviews", reviewHandler.ListByProperty)
 
 		authenticated := api.Group("")
 		authenticated.Use(middleware.AuthMiddleware(jwtService))
@@ -61,6 +63,8 @@ func main() {
 			authenticated.GET("/orders", orderHandler.List)
 			authenticated.GET("/orders/:id", orderHandler.Get)
 			authenticated.POST("/orders/:id/transition", orderHandler.Transition)
+
+			authenticated.POST("/reviews", reviewHandler.Create)
 		}
 	}
 
