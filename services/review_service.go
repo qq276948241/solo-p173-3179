@@ -14,7 +14,12 @@ var (
 	ErrAlreadyReviewed      = errors.New("this order has already been reviewed")
 	ErrInvalidRating        = errors.New("rating must be between 1 and 5")
 	ErrPropertyNotFound     = errors.New("property not found")
+	ErrInvalidCursor        = errors.New("invalid cursor")
+	ErrInvalidLimit         = errors.New("invalid limit")
 )
+
+const DefaultReviewLimit = 20
+const MaxReviewLimit = 100
 
 type ReviewService struct {
 	db *gorm.DB
@@ -31,10 +36,17 @@ type ReviewCreateParams struct {
 	Comment  string
 }
 
+type ReviewListParams struct {
+	PropertyID uint
+	Cursor     uint
+	Limit      int
+}
+
 type ReviewListResult struct {
-	Reviews   []models.Review `json:"reviews"`
-	AvgRating float64         `json:"avg_rating"`
-	Count     int64           `json:"count"`
+	Reviews    []models.Review `json:"reviews"`
+	AvgRating  float64         `json:"avg_rating"`
+	Count      int64           `json:"count"`
+	NextCursor uint            `json:"next_cursor"`
 }
 
 func (s *ReviewService) CreateReview(params ReviewCreateParams) (*models.Review, error) {
@@ -86,29 +98,60 @@ func (s *ReviewService) CreateReview(params ReviewCreateParams) (*models.Review,
 	return review, nil
 }
 
-func (s *ReviewService) ListByProperty(propertyID uint) (*ReviewListResult, error) {
-	var reviews []models.Review
-	if err := s.db.Where("property_id = ?", propertyID).
-		Order("created_at desc").
-		Find(&reviews).Error; err != nil {
+func (s *ReviewService) ListByProperty(params ReviewListParams) (*ReviewListResult, error) {
+	limit := params.Limit
+	if limit <= 0 {
+		limit = DefaultReviewLimit
+	}
+	if limit > MaxReviewLimit {
+		limit = MaxReviewLimit
+	}
+
+	var totalCount int64
+	if err := s.db.Model(&models.Review{}).
+		Where("property_id = ?", params.PropertyID).
+		Count(&totalCount).Error; err != nil {
 		return nil, err
 	}
 
-	type avgResult struct {
-		AvgRating float64
-		Count     int64
+	avgRating := 0.0
+	if totalCount > 0 {
+		type avgResult struct {
+			AvgRating float64
+		}
+		var ar avgResult
+		if err := s.db.Model(&models.Review{}).
+			Where("property_id = ?", params.PropertyID).
+			Select("AVG(rating) as avg_rating").
+			Scan(&ar).Error; err != nil {
+			return nil, err
+		}
+		avgRating = ar.AvgRating
 	}
-	var result avgResult
-	if err := s.db.Model(&models.Review{}).
-		Where("property_id = ?", propertyID).
-		Select("COALESCE(AVG(rating), 0) as avg_rating, COUNT(*) as count").
-		Scan(&result).Error; err != nil {
+
+	var reviews []models.Review
+	query := s.db.Where("property_id = ?", params.PropertyID).
+		Order("id desc").
+		Limit(limit + 1)
+
+	if params.Cursor > 0 {
+		query = query.Where("id < ?", params.Cursor)
+	}
+
+	if err := query.Find(&reviews).Error; err != nil {
 		return nil, err
+	}
+
+	nextCursor := uint(0)
+	if len(reviews) > limit {
+		nextCursor = reviews[limit].ID
+		reviews = reviews[:limit]
 	}
 
 	return &ReviewListResult{
-		Reviews:   reviews,
-		AvgRating: result.AvgRating,
-		Count:     result.Count,
+		Reviews:    reviews,
+		AvgRating:  avgRating,
+		Count:      totalCount,
+		NextCursor: nextCursor,
 	}, nil
 }

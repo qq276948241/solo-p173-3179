@@ -77,15 +77,42 @@ func (h *ReviewHandler) ListByProperty(c *gin.Context) {
 		return
 	}
 
-	result, err := h.reviewService.ListByProperty(uint(propertyID))
+	cursor := uint(0)
+	cursorStr := c.Query("cursor")
+	if cursorStr != "" {
+		parsed, err := strconv.ParseUint(cursorStr, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cursor"})
+			return
+		}
+		cursor = uint(parsed)
+	}
+
+	limit := 0
+	limitStr := c.Query("limit")
+	if limitStr != "" {
+		parsed, err := strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
+			return
+		}
+		limit = parsed
+	}
+
+	result, err := h.reviewService.ListByProperty(services.ReviewListParams{
+		PropertyID: uint(propertyID),
+		Cursor:     cursor,
+		Limit:      limit,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query reviews"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"reviews":    result.Reviews,
-		"avg_rating": result.AvgRating,
-		"count":      result.Count,
+		"reviews":      result.Reviews,
+		"avg_rating":   result.AvgRating,
+		"count":        result.Count,
+		"next_cursor":  result.NextCursor,
 	})
 }
