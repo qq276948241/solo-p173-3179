@@ -8,6 +8,7 @@ import (
 	"project173/middleware"
 	"project173/models"
 	"project173/pkg/jwt"
+	"project173/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +26,8 @@ func main() {
 	userHandler := handlers.NewUserHandler(jwtService)
 	propertyHandler := handlers.NewPropertyHandler()
 	orderHandler := handlers.NewOrderHandler()
-	reviewHandler := handlers.NewReviewHandler()
+	reviewService := services.NewReviewService(database.DB)
+	reviewHandler := handlers.NewReviewHandler(reviewService)
 
 	r := gin.Default()
 
